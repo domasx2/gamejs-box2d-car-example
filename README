@@ -1,0 +1,12 @@
+This is a simple as I could make it example of a HTML5 top-down car game using gamejs javascript game framework and box2d physics engine.
+
+Based on http://www.emanueleferonato.com/2009/04/06/two-ways-to-make-box2d-cars/ and http://www.banditracer.eu.
+
+The basic idea is to rotate front wheels when user steers and apply engine force on them. Wheels are connected to the car and drag it along.
+Remove sideways velocity from all wheels every frame to simulate tire friction.
+This model does not allow for drifting, but is very servicable for arcade top down car games.
+
+TODO:
+Switch to box2dweb javascript port of box2d, then use debugdraw to render bodies.
+Merge vector functions from utils.js into gamejs.utils.vectors.
+Maybe: add sprite drawing for the car? It's needed in any conceivable top down car game.
