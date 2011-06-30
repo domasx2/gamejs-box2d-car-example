@@ -1,29 +1,29 @@
 var gamejs = require('gamejs');
-var box2d = require('./box2d');
+var box2d = require('./Box2dWeb-2.1.a.3');
 var utils = require('./utils');
 
-var STEER_NONE=STEER_NONE=0;
-var STEER_RIGHT=STEER_RIGHT=1;
-var STEER_LEFT=STEER_LEFT=2;
+var STEER_NONE=0;
+var STEER_RIGHT=1;
+var STEER_LEFT=2;
 
-var ACC_NONE=ACC_NONE=0;
-var ACC_ACCELERATE=ACC_ACCELERATE=1;
-var ACC_BRAKE=ACC_BRAKE=2;
+var ACC_NONE=0;
+var ACC_ACCELERATE=1;
+var ACC_BRAKE=2;
 
-var WIDTH_PX=800   //screen width in pixels
+var WIDTH_PX=800;   //screen width in pixels
 var HEIGHT_PX=600; //screen height in pixels
-var SCALE=10;      //how many pixels in a meter
+var SCALE=20;      //how many pixels in a meter
 var WIDTH_M=WIDTH_PX/SCALE; //world width in meters. for this example, world is as large as the screen
 var HEIGHT_M=HEIGHT_PX/SCALE; //world height in meters
-var KEYS_DOWN={};
+var KEYS_DOWN={}; //keep track of what keys are held down by the player
 var b2world;
 
 var font=new gamejs.font.Font('16px Sans-serif');
 
 var BINDINGS={accelerate:gamejs.event.K_UP, 
-                brake:gamejs.event.K_DOWN,      
-                steer_left:gamejs.event.K_LEFT, 
-                steer_right:gamejs.event.K_RIGHT}; 
+              brake:gamejs.event.K_DOWN,      
+              steer_left:gamejs.event.K_LEFT, 
+               steer_right:gamejs.event.K_RIGHT}; 
 
 function handleEvent(event){
     if (event.type === gamejs.event.KEY_DOWN) {
@@ -36,22 +36,27 @@ function handleEvent(event){
 
 var BoxProp = function(pars){
     /*
-    just a simple constructor for physical props
+   static rectangle shaped prop
      
      pars:
      size - array [width, height]
      position - array [x, y], in world meters, of center
     */
     this.size=pars.size;
+    
+    //initialize body
     var bdef=new box2d.b2BodyDef();
     bdef.position=new box2d.b2Vec2(pars.position[0], pars.position[1]);
     bdef.angle=0;
     bdef.fixedRotation=true;
     this.body=b2world.CreateBody(bdef);
-    var sdef=new box2d.b2PolygonDef();
-    sdef.SetAsBox(this.size[0]/2, this.size[1]/2);
-    sdef.restitution=0.4; //positively bouncy!
-    this.body.CreateShape(sdef);
+    
+    //initialize shape
+    var fixdef=new box2d.b2FixtureDef;
+    fixdef.shape=new box2d.b2PolygonShape();
+    fixdef.shape.SetAsBox(this.size[0]/2, this.size[1]/2);
+    fixdef.restitution=0.4; //positively bouncy!
+    this.body.CreateFixture(fixdef);
     return this;  
 };
 
@@ -73,24 +78,26 @@ function Wheel(pars){
     this.revolving=pars.revolving;
     this.powered=pars.powered;
 
-    //initialize physical body
+    //initialize body
     var def=new box2d.b2BodyDef();
+    def.type = box2d.b2Body.b2_dynamicBody;
     def.position=this.car.body.GetWorldPoint(new box2d.b2Vec2(this.position[0], this.position[1]));
     def.angle=this.car.body.GetAngle();
     this.body=b2world.CreateBody(def);
-    this.body.SetMassFromShapes();
-    var boxdef=new box2d.b2PolygonDef();
-    boxdef.SetAsBox(pars.width/2, pars.length/2);
-    boxdef.density=1;
-    boxdef.isSensor=true; //wheel is not collidable. 'physical' wheels don't work well with this version of box2d :/
-    this.body.CreateShape(boxdef);
-    this.body.SetMassFromShapes();
+    
+    //initialize shape
+    var fixdef= new box2d.b2FixtureDef;
+    fixdef.density=1;
+    fixdef.isSensor=true; //wheel is not collidable, no need to complicate things
+    fixdef.shape=new box2d.b2PolygonShape();
+    fixdef.shape.SetAsBox(pars.width/2, pars.length/2);
+    this.body.CreateFixture(fixdef);
 
     //create joint to connect wheel to body
     if(this.revolving){
         var jointdef=new box2d.b2RevoluteJointDef();
         jointdef.Initialize(this.car.body, this.body, this.body.GetWorldCenter());
-        jointdef.enableMotor=false; //using motor to rotate the wheel does not work well for me with this box2d versio
+        jointdef.enableMotor=false; //we'll forcing the wheel's angle
     }else{
         var jointdef=new box2d.b2PrismaticJointDef();
         jointdef.Initialize(this.car.body, this.body, this.body.GetWorldCenter(), new box2d.b2Vec2(1, 0));
@@ -107,7 +114,7 @@ Wheel.prototype.setAngle=function(angle){
     /*
     angle - wheel angle relative to car, in degrees
     */
-    this.body.SetXForm(this.body.GetPosition(), this.car.body.GetAngle()+utils.radians(angle));
+    this.body.SetAngle(this.car.body.GetAngle()+utils.radians(angle));
 };
 
 Wheel.prototype.getLocalVelocity=function(){
@@ -147,7 +154,7 @@ Wheel.prototype.killSidewaysVelocity=function(){
 
 function Car(pars){
     /*
-    pars is an object with possible attributes:\
+    pars is an object with possible attributes:
     
     width - width of the car in meters
     length - length of the car in meters
@@ -163,29 +170,34 @@ function Car(pars){
              powered - is force applied to this wheel when accelerating/braking?
     */
 
+    //state of car controls
     this.steer=STEER_NONE;
     this.accelerate=ACC_NONE;
     
     this.max_steer_angle=pars.max_steer_angle;
     this.max_speed=pars.max_speed;
     this.power=pars.power;
-    this.wheel_angle=0;//keep track of current wheel angle relative to car
+    this.wheel_angle=0;//keep track of current wheel angle relative to car.
+                       //when steering left/right, angle will be decreased/increased gradually over 200ms to prevent jerkyness.
     
-    //create physical body
+    //initialize body
     var def=new box2d.b2BodyDef();
+    def.type = box2d.b2Body.b2_dynamicBody;
     def.position=new box2d.b2Vec2(pars.position[0], pars.position[1]);
     def.angle=utils.radians(pars.angle); 
-    def.linearDamping=0.15; 
+    def.linearDamping=0.15;  //gradually reduces velocity, makes the car reduce speed slowly if neither accelerator nor brake is pressed
     def.bullet=true; //dedicates more time to collision detection - car travelling at high speeds at low framerates otherwise might teleport through obstacles.
     def.angularDamping=0.3;
     this.body=b2world.CreateBody(def);
-    var shapedef=new box2d.b2PolygonDef();
-    shapedef.SetAsBox(pars.width/2, pars.length/2);
-    shapedef.density=1;
-    shapedef.friction=0.3;
-    shapedef.restitution=0.4;
-    this.body.CreateShape(shapedef);
-    this.body.SetMassFromShapes();
+    
+    //initialize shape
+    var fixdef= new box2d.b2FixtureDef();
+    fixdef.density = 1.0;
+    fixdef.friction = 0.3; //friction when rubbing agaisnt other shapes
+    fixdef.restitution = 0.4;  //amount of force feedback when hitting something. >0 makes the car bounce off, it's fun!
+    fixdef.shape=new box2d.b2PolygonShape;
+    fixdef.shape.SetAsBox(pars.width/2, pars.length/2);
+    this.body.CreateFixture(fixdef);
     
     //initialize wheels
     this.wheels=[]
@@ -296,7 +308,6 @@ Car.prototype.update=function(msDuration){
            var position=wheels[i].body.GetWorldCenter();
            wheels[i].body.ApplyForce(wheels[i].body.GetWorldVector(new box2d.b2Vec2(fvect[0], fvect[1])), position );
         }
-    
         
         //if going very slow, stop - to prevent endless sliding
         if( (this.getSpeedKMH()<4) &&(this.accelerate==ACC_NONE)){
@@ -305,23 +316,6 @@ Car.prototype.update=function(msDuration){
 
 };
 
-function drawBody(display, body){
-    /*
-    Draw a body.
-    TODO: upgrade to box2dweb, use debugdraw.
-    */
-    var shape=body.GetShapeList(); //returns a shape instead of list. Bug?
-    var vertices=shape.m_vertices;
-    var p, points=[];
-    for(var i=0;i<vertices.length;i++){
-        if(vertices[i]){
-            p=body.GetWorldPoint(vertices[i]);
-            points.push([p.x*SCALE, p.y*SCALE])
-        }
-    }
-    gamejs.draw.polygon(display, '#000000', points, 1);
-}
-
 function main(){
     /*
     initialize everything, start game loop 
@@ -329,24 +323,30 @@ function main(){
     var display = gamejs.display.setMode([WIDTH_PX, HEIGHT_PX]);
     
     //SET UP B2WORLD
-    var worldAABB=new box2d.b2AABB();
-    //when an object crosses a bound (leaves the screen), it is frozen. make bounds a few meters beyond the screen, so parts of objects do not remain sticking out
-    worldAABB.lowerBound=new box2d.b2Vec2(-10, -10);
-    worldAABB.upperBound=new box2d.b2Vec2(WIDTH_M+10, HEIGHT_M+10);
-    b2world=new box2d.b2World(worldAABB, new box2d.b2Vec2(0, 0), true);
+    b2world=new box2d.b2World(new box2d.b2Vec2(0, 0), false);
+    
+    //set up box2d debug draw to draw the bodies for us.
+    //in a real game, car will propably be drawn as a sprite rotated by the car's angle
+    var debugDraw = new box2d.b2DebugDraw();
+    debugDraw.SetSprite(display._canvas.getContext("2d"));
+    debugDraw.SetDrawScale(SCALE);
+    debugDraw.SetFillAlpha(0.5);
+    debugDraw.SetLineThickness(1.0);
+    debugDraw.SetFlags(box2d.b2DebugDraw.e_shapeBit);
+    b2world.SetDebugDraw(debugDraw);
     
     //initialize car
-    var car=new Car({'width':4,
-                    'length':8,
-                    'position':[30, 20],
+    var car=new Car({'width':2,
+                    'length':4,
+                    'position':[10, 10],
                     'angle':0,
-                    'power':360,
+                    'power':60,
                     'max_steer_angle':20,
-                    'max_speed':100,
-                    'wheels':[{'x':-2, 'y':-2.4, 'width':0.8, 'length':1.6, 'revolving':true, 'powered':true},
-                                {'x':2, 'y':-2.4, 'width':0.8, 'length':1.6, 'revolving':true, 'powered':true},
-                                {'x':-2, 'y':2.4, 'width':0.8, 'length':1.6, 'revolving':false, 'powered':false},
-                                {'x':2, 'y':2.4, 'width':0.8, 'length':1.6, 'revolving':false, 'powered':false}]});
+                    'max_speed':60,
+                    'wheels':[{'x':-1, 'y':-1.2, 'width':0.4, 'length':0.8, 'revolving':true, 'powered':true},
+                                {'x':1, 'y':-1.2, 'width':0.4, 'length':0.8, 'revolving':true, 'powered':true},
+                                {'x':-1, 'y':1.2, 'width':0.4, 'length':0.8, 'revolving':false, 'powered':false},
+                                {'x':1, 'y':1.2, 'width':0.4, 'length':0.8, 'revolving':false, 'powered':false}]});
     
     //initialize some props to bounce against
     var props=[];
@@ -356,9 +356,9 @@ function main(){
     props.push(new BoxProp({'size':[1, HEIGHT_M-2], 'position':[WIDTH_M-0.5, HEIGHT_M/2]}));
     
     var center=[WIDTH_M/2, HEIGHT_M/2];
-    props.push(new BoxProp({'size':[1, 12], 'position':[center[0]-6, center[0]]}));
-    props.push(new BoxProp({'size':[1, 12], 'position':[center[0]+6, center[0]]}));
-    props.push(new BoxProp({'size':[11, 1], 'position':[center[0], center[0]+5.5]}));
+    props.push(new BoxProp({'size':[1, 6], 'position':[center[0]-3, center[0]]}));
+    props.push(new BoxProp({'size':[1, 6], 'position':[center[0]+3, center[0]]}));
+    props.push(new BoxProp({'size':[5, 1], 'position':[center[0], center[0]+2.5]}));
     
     function tick(msDuration) {
         //GAME LOOP
@@ -383,30 +383,24 @@ function main(){
             car.steer=STEER_NONE;
         }
         
+        //update car
+        car.update(msDuration);
+        
         //update physics world
         b2world.Step(msDuration/1000, 10, 8);        
         
-        //update car
-        car.update(msDuration);
+        //clear applied forces, so they don't stack from each update
+        b2world.ClearForces();
         
         //fill background
         gamejs.draw.rect(display, '#FFFFFF', new gamejs.Rect([0, 0], [WIDTH_PX, HEIGHT_PX]),0)
         
-        var i;
-        //draw car and its wheels
-        drawBody(display, car.body);
-        for(i=0;i<car.wheels.length;i++){
-            drawBody(display, car.wheels[i].body);
-        }
-        
-        //draw props
-        for(i=0; i<props.length;i++){
-            drawBody(display, props[i].body);
-        }
+        //let box2d draw it's bodies
+        b2world.DrawDebugData();
         
         //fps and car speed
-        display.blit(font.render('FPS: '+parseInt((1000)/msDuration)), [15, 15]);
-        display.blit(font.render('SPEED: '+parseInt(Math.ceil(car.getSpeedKMH()))+' km/h'), [15, 45]);
+        display.blit(font.render('FPS: '+parseInt((1000)/msDuration)), [25, 25]);
+        display.blit(font.render('SPEED: '+parseInt(Math.ceil(car.getSpeedKMH()))+' km/h'), [25, 55]);
         return;
     };
     gamejs.time.fpsCallback(tick, this, 60);

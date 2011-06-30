@@ -9,6 +9,4 @@ Remove sideways velocity from all wheels every frame to simulate tire friction.
 This model does not allow for drifting, but is very servicable for arcade top down car games.
 
 TODO:
-Switch to box2dweb javascript port of box2d, then use debugdraw to render bodies.
 Merge vector functions from utils.js into gamejs.utils.vectors.
-Maybe: add sprite drawing for the car? It's needed in any conceivable top down car game.
