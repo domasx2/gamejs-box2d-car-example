@@ -11,9 +11,9 @@ var ACC_NONE=0;
 var ACC_ACCELERATE=1;
 var ACC_BRAKE=2;
 
-var WIDTH_PX=800;   //screen width in pixels
-var HEIGHT_PX=600; //screen height in pixels
-var SCALE=20;      //how many pixels in a meter
+var WIDTH_PX=600;   //screen width in pixels
+var HEIGHT_PX=400; //screen height in pixels
+var SCALE=15;      //how many pixels in a meter
 var WIDTH_M=WIDTH_PX/SCALE; //world width in meters. for this example, world is as large as the screen
 var HEIGHT_M=HEIGHT_PX/SCALE; //world height in meters
 var KEYS_DOWN={}; //keep track of what keys are held down by the player
@@ -340,7 +340,7 @@ function main(){
     var car=new Car({'width':2,
                     'length':4,
                     'position':[10, 10],
-                    'angle':0,
+                    'angle':180, 
                     'power':60,
                     'max_steer_angle':20,
                     'max_speed':60,
@@ -357,9 +357,9 @@ function main(){
     props.push(new BoxProp({'size':[1, HEIGHT_M-2], 'position':[WIDTH_M-0.5, HEIGHT_M/2]}));
     
     var center=[WIDTH_M/2, HEIGHT_M/2];
-    props.push(new BoxProp({'size':[1, 6], 'position':[center[0]-3, center[0]]}));
-    props.push(new BoxProp({'size':[1, 6], 'position':[center[0]+3, center[0]]}));
-    props.push(new BoxProp({'size':[5, 1], 'position':[center[0], center[0]+2.5]}));
+    props.push(new BoxProp({'size':[1, 6], 'position':[center[0]-3, center[1]]}));
+    props.push(new BoxProp({'size':[1, 6], 'position':[center[0]+3, center[1]]}));
+    props.push(new BoxProp({'size':[5, 1], 'position':[center[0], center[1]+2.5]}));
     
     function tick(msDuration) {
         //GAME LOOP
