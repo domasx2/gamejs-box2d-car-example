@@ -1,6 +1,7 @@
 var gamejs = require('gamejs');
 var box2d = require('./Box2dWeb-2.1.a.3');
-var utils = require('./utils');
+var vectors = require('gamejs/utils/vectors');
+var math = require('gamejs/utils/math');
 
 var STEER_NONE=0;
 var STEER_RIGHT=1;
@@ -114,7 +115,7 @@ Wheel.prototype.setAngle=function(angle){
     /*
     angle - wheel angle relative to car, in degrees
     */
-    this.body.SetAngle(this.car.body.GetAngle()+utils.radians(angle));
+    this.body.SetAngle(this.car.body.GetAngle()+math.radians(angle));
 };
 
 Wheel.prototype.getLocalVelocity=function(){
@@ -128,7 +129,7 @@ Wheel.prototype.getDirectionVector=function(){
     /*
     returns a world unit vector pointing in the direction this wheel is moving
     */
-    return utils.rotateVector( (this.getLocalVelocity().y>0) ? [0, 1]:[0, -1] , utils.degrees(this.body.GetAngle())) ;
+    return vectors.rotate((this.getLocalVelocity()[1]>0) ? [0, 1]:[0, -1] , this.body.GetAngle()) ;
 };
 
 
@@ -138,7 +139,7 @@ Wheel.prototype.getKillVelocityVector=function(){
     */
     var velocity=this.body.GetLinearVelocity();
     var sideways_axis=this.getDirectionVector();
-    var dotprod=utils.vectorDotProduct([velocity.x, velocity.y], sideways_axis);
+    var dotprod=vectors.dot([velocity.x, velocity.y], sideways_axis);
     return [sideways_axis[0]*dotprod, sideways_axis[1]*dotprod];
 };
 
@@ -184,7 +185,7 @@ function Car(pars){
     var def=new box2d.b2BodyDef();
     def.type = box2d.b2Body.b2_dynamicBody;
     def.position=new box2d.b2Vec2(pars.position[0], pars.position[1]);
-    def.angle=utils.radians(pars.angle); 
+    def.angle=math.radians(pars.angle); 
     def.linearDamping=0.15;  //gradually reduces velocity, makes the car reduce speed slowly if neither accelerator nor brake is pressed
     def.bullet=true; //dedicates more time to collision detection - car travelling at high speeds at low framerates otherwise might teleport through obstacles.
     def.angularDamping=0.3;
@@ -239,7 +240,7 @@ Car.prototype.getRevolvingWheels=function(){
 
 Car.prototype.getSpeedKMH=function(){
     var velocity=this.body.GetLinearVelocity();
-    var len=utils.vectorLength([velocity.x, velocity.y]);
+    var len=vectors.len([velocity.x, velocity.y]);
     return (len/1000)*3600;
 };
 
@@ -248,7 +249,7 @@ Car.prototype.setSpeed=function(speed){
     speed - speed in kilometers per hour
     */
     var velocity=this.body.GetLinearVelocity();
-    velocity=utils.normaliseVector([velocity.x, velocity.y]);
+    velocity=vectors.unit([velocity.x, velocity.y]);
     velocity=new box2d.b2Vec2(velocity[0]*((speed*1000.0)/3600.0),
                               velocity[1]*((speed*1000.0)/3600.0));
     this.body.SetLinearVelocity(velocity);
