@@ -7,6 +7,3 @@ Based on http://www.emanueleferonato.com/2009/04/06/two-ways-to-make-box2d-cars/
 The basic idea is to rotate front wheels when user steers and apply engine force on them. Wheels are connected to the car and drag it along.
 Remove sideways velocity from all wheels every frame to simulate tire friction.
 This model does not allow for drifting, but is very servicable for arcade top down car games.
-
-TODO:
-Merge vector functions from utils.js into gamejs.utils.vectors.
