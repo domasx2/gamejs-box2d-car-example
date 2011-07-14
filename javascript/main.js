@@ -19,20 +19,14 @@ var HEIGHT_M=HEIGHT_PX/SCALE; //world height in meters
 var KEYS_DOWN={}; //keep track of what keys are held down by the player
 var b2world;
 
+//initialize font to draw text with
 var font=new gamejs.font.Font('16px Sans-serif');
 
+//key bindings
 var BINDINGS={accelerate:gamejs.event.K_UP, 
               brake:gamejs.event.K_DOWN,      
               steer_left:gamejs.event.K_LEFT, 
                steer_right:gamejs.event.K_RIGHT}; 
-
-function handleEvent(event){
-    if (event.type === gamejs.event.KEY_DOWN) {
-        KEYS_DOWN[event.key] = true;
-    } else if (event.type === gamejs.event.KEY_UP) {
-        KEYS_DOWN[event.key] = false;
-    }; 
-};
 
 
 var BoxProp = function(pars){
@@ -63,7 +57,9 @@ var BoxProp = function(pars){
 
 function Wheel(pars){
     /*
-    pars - object with attributes:
+    wheel object 
+          
+    pars:
     
     car - car this wheel belongs to
     x - horizontal position in meters relative to car's center
@@ -89,7 +85,7 @@ function Wheel(pars){
     //initialize shape
     var fixdef= new box2d.b2FixtureDef;
     fixdef.density=1;
-    fixdef.isSensor=true; //wheel is not collidable, no need to complicate things
+    fixdef.isSensor=true; //wheel does not participate in collision calculations: resulting complications are unnecessary
     fixdef.shape=new box2d.b2PolygonShape();
     fixdef.shape.SetAsBox(pars.width/2, pars.length/2);
     this.body.CreateFixture(fixdef);
@@ -98,7 +94,7 @@ function Wheel(pars){
     if(this.revolving){
         var jointdef=new box2d.b2RevoluteJointDef();
         jointdef.Initialize(this.car.body, this.body, this.body.GetWorldCenter());
-        jointdef.enableMotor=false; //we'll forcing the wheel's angle
+        jointdef.enableMotor=false; //we'll be controlling the wheel's angle manually
     }else{
         var jointdef=new box2d.b2PrismaticJointDef();
         jointdef.Initialize(this.car.body, this.body, this.body.GetWorldCenter(), new box2d.b2Vec2(1, 0));
@@ -211,6 +207,7 @@ function Car(pars){
 }
 
 Car.prototype.getPoweredWheels=function(){
+    //return array of powered wheels
     var retv=[];
     for(var i=0;i<this.wheels.length;i++){
         if(this.wheels[i].powered){
@@ -229,6 +226,7 @@ Car.prototype.getLocalVelocity=function(){
 };
 
 Car.prototype.getRevolvingWheels=function(){
+    //return array of wheels that turn when steering
     var retv=[];
     for(var i=0;i<this.wheels.length;i++){
         if(this.wheels[i].revolving){
@@ -317,10 +315,12 @@ Car.prototype.update=function(msDuration){
 
 };
 
+/*
+ *initialize car and props, start game loop
+ */
 function main(){
-    /*
-    initialize everything, start game loop 
-    */
+   
+    //initialize display
     var display = gamejs.display.setMode([WIDTH_PX, HEIGHT_PX]);
     
     //SET UP B2WORLD
@@ -344,18 +344,21 @@ function main(){
                     'power':60,
                     'max_steer_angle':20,
                     'max_speed':60,
-                    'wheels':[{'x':-1, 'y':-1.2, 'width':0.4, 'length':0.8, 'revolving':true, 'powered':true},
-                                {'x':1, 'y':-1.2, 'width':0.4, 'length':0.8, 'revolving':true, 'powered':true},
-                                {'x':-1, 'y':1.2, 'width':0.4, 'length':0.8, 'revolving':false, 'powered':false},
-                                {'x':1, 'y':1.2, 'width':0.4, 'length':0.8, 'revolving':false, 'powered':false}]});
+                    'wheels':[{'x':-1, 'y':-1.2, 'width':0.4, 'length':0.8, 'revolving':true, 'powered':true}, //top left
+                                {'x':1, 'y':-1.2, 'width':0.4, 'length':0.8, 'revolving':true, 'powered':true}, //top right
+                                {'x':-1, 'y':1.2, 'width':0.4, 'length':0.8, 'revolving':false, 'powered':false}, //back left
+                                {'x':1, 'y':1.2, 'width':0.4, 'length':0.8, 'revolving':false, 'powered':false}]}); //back right
     
     //initialize some props to bounce against
     var props=[];
+    
+    //outer walls
     props.push(new BoxProp({'size':[WIDTH_M, 1],    'position':[WIDTH_M/2, 0.5]}));
     props.push(new BoxProp({'size':[1, HEIGHT_M-2], 'position':[0.5, HEIGHT_M/2]}));
     props.push(new BoxProp({'size':[WIDTH_M, 1],    'position':[WIDTH_M/2, HEIGHT_M-0.5]}));
     props.push(new BoxProp({'size':[1, HEIGHT_M-2], 'position':[WIDTH_M-0.5, HEIGHT_M/2]}));
     
+    //pen in the center
     var center=[WIDTH_M/2, HEIGHT_M/2];
     props.push(new BoxProp({'size':[1, 6], 'position':[center[0]-3, center[1]]}));
     props.push(new BoxProp({'size':[1, 6], 'position':[center[0]+3, center[1]]}));
@@ -364,8 +367,13 @@ function main(){
     function tick(msDuration) {
         //GAME LOOP
         
-        //handle events
-        gamejs.event.get().forEach(handleEvent);
+        //handle events. Key status (depressed or no) is tracked in via KEYS_DOWN associative array
+        gamejs.event.get().forEach(function(event){
+            //key press
+            if (event.type === gamejs.event.KEY_DOWN) KEYS_DOWN[event.key] = true;
+            //key release
+            else if (event.type === gamejs.event.KEY_UP) KEYS_DOWN[event.key] = false;           
+        });
         
         //set car controls according to player input
         if(KEYS_DOWN[BINDINGS.accelerate]){
@@ -399,7 +407,7 @@ function main(){
         //let box2d draw it's bodies
         b2world.DrawDebugData();
         
-        //fps and car speed
+        //fps and car speed display
         display.blit(font.render('FPS: '+parseInt((1000)/msDuration)), [25, 25]);
         display.blit(font.render('SPEED: '+parseInt(Math.ceil(car.getSpeedKMH()))+' km/h'), [25, 55]);
         return;
