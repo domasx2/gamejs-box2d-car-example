@@ -1,6 +1,6 @@
 This is a simple as I could make it example of a HTML5 top-down car game using gamejs javascript game framework and box2d physics engine.
 
-Live example at: http://www.banditracer.eu/carexample/
+Live example at: http://domasx2.github.com/gamejs-box2d-car-example
 
 Based on http://www.emanueleferonato.com/2009/04/06/two-ways-to-make-box2d-cars/ and http://www.banditracer.eu.
 
