@@ -367,14 +367,6 @@ function main(){
     function tick(msDuration) {
         //GAME LOOP
         
-        //handle events. Key status (depressed or no) is tracked in via KEYS_DOWN associative array
-        gamejs.event.get().forEach(function(event){
-            //key press
-            if (event.type === gamejs.event.KEY_DOWN) KEYS_DOWN[event.key] = true;
-            //key release
-            else if (event.type === gamejs.event.KEY_UP) KEYS_DOWN[event.key] = false;           
-        });
-        
         //set car controls according to player input
         if(KEYS_DOWN[BINDINGS.accelerate]){
             car.accelerate=ACC_ACCELERATE;
@@ -412,7 +404,13 @@ function main(){
         display.blit(font.render('SPEED: '+parseInt(Math.ceil(car.getSpeedKMH()))+' km/h'), [25, 55]);
         return;
     };
-    gamejs.time.fpsCallback(tick, this, 60);
+    function handleEvent(event){
+        if (event.type === gamejs.event.KEY_DOWN) KEYS_DOWN[event.key] = true;
+            //key release
+        else if (event.type === gamejs.event.KEY_UP) KEYS_DOWN[event.key] = false;  
+    };
+    gamejs.onTick(tick, this);
+    gamejs.onEvent(handleEvent);
     
 }
 
